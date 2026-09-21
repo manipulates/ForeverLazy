@@ -4,5 +4,5 @@
 ## Notes: We have all been spoiled by Retail, plus I always forget to repair my armor. Wrote this to do it for me. Nothing fancy but it gets the job done.
 ## Author: Chrome Jesus
 ## Version: 1.0.0
-## SavedVariables: ForeverVendorDB
-ForeverVendor.lua
+## SavedVariables: ForeverLazyDB, ForeverVendorDB
+ForeverLazy.lua
