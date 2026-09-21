@@ -21,7 +21,7 @@ Repair and junk selling are on by default. Guild repair is off — leave it that
 
 ## Install
 
-1. Download the [zip](https://github.com/manipulates/ForeverLazy/archive/refs/heads/main.zip) and extract it.
-2. Rename the folder to `ForeverLazy` if it is named `ForeverLazy-main`.
+1. Download [ForeverLazy-1.0.0.zip](https://github.com/manipulates/ForeverLazy/releases/download/v1.0.0/ForeverLazy-1.0.0.zip) from the [latest release](https://github.com/manipulates/ForeverLazy/releases/latest).
+2. Extract it. You should get a folder named `ForeverLazy`.
 3. Put that folder in `Interface\AddOns`.
 4. Restart the game and enable **Forever Lazy** on the character select AddOns list.
