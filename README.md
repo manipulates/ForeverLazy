@@ -2,8 +2,6 @@
 
 A small Classic / Forever addon that auto-sells grey junk and auto-repairs when you open a vendor. Retail spoiled us. This covers the two things I always forget.
 
-Author: Chrome Jesus
-
 ## How to use
 
 Open a merchant. That is it.
