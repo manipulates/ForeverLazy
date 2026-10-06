@@ -7,6 +7,7 @@ local defaults = {
     repair = true,
     useGuildRepair = false,
     verbose = true,
+    repairBelow = 100,
 }
 
 local function db()
@@ -129,8 +130,26 @@ local function sellJunk()
     return sold, copper
 end
 
+local function lowestDurability()
+    local lowest
+    for slot = 1, 19 do
+        local cur, max = GetInventoryItemDurability(slot)
+        if cur and max and max > 0 then
+            local pct = cur / max * 100
+            if not lowest or pct < lowest then
+                lowest = pct
+            end
+        end
+    end
+    return lowest
+end
+
 local function doRepair()
     if not db().repair then
+        return false, 0, false
+    end
+    local lowest = lowestDurability()
+    if not lowest or lowest > (tonumber(db().repairBelow) or 100) then
         return false, 0, false
     end
     if not CanMerchantRepair or not CanMerchantRepair() then
@@ -264,6 +283,46 @@ local function makeCheckbox(parent, key, title, hint, x, y)
     return cb
 end
 
+local function makeSlider(parent, key, x, y)
+    local name = ADDON .. "RepairSlider"
+    local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
+    slider:SetPoint("TOPLEFT", x, y)
+    slider:SetWidth(220)
+    slider:SetMinMaxValues(10, 100)
+    slider:SetValueStep(5)
+    if slider.SetObeyStepOnDrag then
+        slider:SetObeyStepOnDrag(true)
+    end
+
+    local text = _G[name .. "Text"] or slider.Text
+    local low = _G[name .. "Low"] or slider.Low
+    local high = _G[name .. "High"] or slider.High
+    if low then low:SetText("10%") end
+    if high then high:SetText("100%") end
+
+    local function show(value)
+        if text then
+            if value >= 100 then
+                text:SetText("Repair at any damage")
+            else
+                text:SetText("Repair when gear is at " .. value .. "% or below")
+            end
+        end
+    end
+
+    slider:SetScript("OnValueChanged", function(self, value)
+        value = math.floor(value / 5 + 0.5) * 5
+        db()[key] = value
+        show(value)
+    end)
+    slider.refresh = function()
+        local value = tonumber(db()[key]) or 100
+        slider:SetValue(value)
+        show(value)
+    end
+    return slider
+end
+
 local function buildPanel()
     local panel = CreateFrame("Frame")
     panel.name = "Forever Lazy"
@@ -286,12 +345,15 @@ local function buildPanel()
         makeCheckbox(panel, "useGuildRepair", "Use guild repair", "Spends guild bank money first. Leave off on Forever unless guild repair works for you.", 40, -204),
     }
 
+    local slider = makeSlider(panel, "repairBelow", 24, -278)
+    boxes[#boxes + 1] = slider
+
     local chatHeader = makeText(panel, "GameFontNormal", "Chat")
-    chatHeader:SetPoint("TOPLEFT", 16, -262)
-    boxes[#boxes + 1] = makeCheckbox(panel, "verbose", "Chat messages", "Prints repair cost and junk sold.", 16, -286)
+    chatHeader:SetPoint("TOPLEFT", 16, -322)
+    boxes[#boxes + 1] = makeCheckbox(panel, "verbose", "Chat messages", "Prints repair cost and junk sold.", 16, -346)
 
     local aboutHeader = makeText(panel, "GameFontNormal", "About")
-    aboutHeader:SetPoint("TOPLEFT", 16, -348)
+    aboutHeader:SetPoint("TOPLEFT", 16, -408)
 
     local about = makeText(panel, "GameFontHighlightSmall",
         "Retail spoiled us. Classic never caught up, and I kept forgetting to repair my armor and clear the grey junk out of my bags. "
