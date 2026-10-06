@@ -8,7 +8,7 @@ A small Classic / Forever addon that auto-sells grey junk and auto-repairs when 
 
 Open a merchant. That is it.
 
-Repair and junk selling are on by default. Guild repair is off — leave it that way on Forever unless you know guild repair works there.
+Repair and junk selling are on by default. In options you can set a slider so gear is only repaired once its durability drops to a chosen percent. Guild repair is off — leave it that way on Forever unless you know guild repair works there.
 
 `/fl` opens options. You can also toggle things from chat:
 
