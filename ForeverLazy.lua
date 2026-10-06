@@ -224,63 +224,123 @@ end
 
 local settingsCategory
 
-local function registerCheckbox(category, key, title, tooltip)
-    local variable = ADDON .. "_" .. key
-    local varType = (Settings.VarType and Settings.VarType.Boolean) or "boolean"
-    local setting = Settings.RegisterAddOnSetting(
-        category,
-        variable,
-        key,
-        ForeverLazyDB,
-        varType,
-        title,
-        defaults[key]
-    )
-    Settings.CreateCheckbox(category, setting, tooltip)
-    return setting
+local REPO_URL = "github.com/manipulates/ForeverLazy"
+
+local function addonVersion()
+    local fn = (C_AddOns and C_AddOns.GetAddOnMetadata) or GetAddOnMetadata
+    return fn and fn(ADDON, "Version") or ""
 end
 
-local function buildOptions()
-    if settingsCategory then
-        return
+local function makeText(parent, template, text, r, g, b)
+    local fs = parent:CreateFontString(nil, "ARTWORK", template)
+    fs:SetJustifyH("LEFT")
+    fs:SetJustifyV("TOP")
+    fs:SetText(text)
+    if r then
+        fs:SetTextColor(r, g, b)
     end
-    if not Settings or not Settings.RegisterVerticalLayoutCategory
-        or not Settings.RegisterAddOnSetting or not Settings.CreateCheckbox then
+    return fs
+end
+
+local function makeCheckbox(parent, key, title, hint, x, y)
+    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+    cb:SetSize(26, 26)
+    cb:SetPoint("TOPLEFT", x, y)
+
+    local label = makeText(parent, "GameFontHighlight", title)
+    label:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+
+    if hint then
+        local note = makeText(parent, "GameFontDisableSmall", hint)
+        note:SetPoint("TOPLEFT", cb, "BOTTOMLEFT", 30, 2)
+    end
+
+    cb:SetScript("OnClick", function(self)
+        db()[key] = self:GetChecked() and true or false
+    end)
+    cb.refresh = function()
+        cb:SetChecked(db()[key] and true or false)
+    end
+    return cb
+end
+
+local function buildPanel()
+    local panel = CreateFrame("Frame")
+    panel.name = "Forever Lazy"
+
+    local title = makeText(panel, "GameFontNormalLarge", "Forever Lazy")
+    title:SetPoint("TOPLEFT", 16, -16)
+
+    local version = makeText(panel, "GameFontDisableSmall", "v" .. addonVersion())
+    version:SetPoint("BOTTOMLEFT", title, "BOTTOMRIGHT", 8, 1)
+
+    local tagline = makeText(panel, "GameFontHighlightSmall", "Sells your junk and repairs your gear when you open a vendor.")
+    tagline:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
+
+    local vendorHeader = makeText(panel, "GameFontNormal", "Vendor")
+    vendorHeader:SetPoint("TOPLEFT", tagline, "BOTTOMLEFT", 0, -22)
+
+    local boxes = {
+        makeCheckbox(panel, "sellJunk", "Auto-sell junk", "Sells grey items when a merchant opens.", 16, -104),
+        makeCheckbox(panel, "repair", "Auto-repair", "Repairs all equipped gear when the merchant can repair.", 16, -154),
+        makeCheckbox(panel, "useGuildRepair", "Use guild repair", "Spends guild bank money first. Leave off on Forever unless guild repair works for you.", 40, -204),
+    }
+
+    local chatHeader = makeText(panel, "GameFontNormal", "Chat")
+    chatHeader:SetPoint("TOPLEFT", 16, -262)
+    boxes[#boxes + 1] = makeCheckbox(panel, "verbose", "Chat messages", "Prints repair cost and junk sold.", 16, -286)
+
+    local aboutHeader = makeText(panel, "GameFontNormal", "About")
+    aboutHeader:SetPoint("TOPLEFT", 16, -348)
+
+    local about = makeText(panel, "GameFontHighlightSmall",
+        "Retail spoiled us. Classic never caught up, and I kept forgetting to repair my armor and clear the grey junk out of my bags. "
+        .. "So I wrote this to do it for me. Nothing fancy, but it gets the job done.")
+    about:SetPoint("TOPLEFT", aboutHeader, "BOTTOMLEFT", 0, -8)
+    about:SetWidth(520)
+
+    local credit = makeText(panel, "GameFontNormalSmall", "A Chrome Jesus piece. 2026.")
+    credit:SetPoint("TOPLEFT", about, "BOTTOMLEFT", 0, -14)
+
+    local link = CreateFrame("EditBox", nil, panel)
+    link:SetFontObject("GameFontDisableSmall")
+    link:SetAutoFocus(false)
+    link:SetSize(300, 16)
+    link:SetPoint("TOPLEFT", credit, "BOTTOMLEFT", 0, -4)
+    link:SetText(REPO_URL)
+    link:SetScript("OnEditFocusLost", function(self) self:SetText(REPO_URL) end)
+    link:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+    local commands = makeText(panel, "GameFontDisableSmall", "Chat commands: /fl, /fl sell, /fl repair, /fl guild, /fl quiet")
+    commands:SetPoint("TOPLEFT", link, "BOTTOMLEFT", 0, -14)
+
+    panel:SetScript("OnShow", function()
+        for _, cb in ipairs(boxes) do
+            cb.refresh()
+        end
+    end)
+    return panel
+end
+
+local legacyPanel
+
+local function buildOptions()
+    if settingsCategory or legacyPanel then
         return
     end
 
     applyDefaults()
 
     local ok, err = pcall(function()
-        local category = Settings.RegisterVerticalLayoutCategory("Forever Lazy")
-
-        registerCheckbox(
-            category,
-            "sellJunk",
-            "Auto-sell junk",
-            "Sell grey items when you open a merchant."
-        )
-        registerCheckbox(
-            category,
-            "repair",
-            "Auto-repair",
-            "Repair all equipped gear when the merchant can repair."
-        )
-        registerCheckbox(
-            category,
-            "useGuildRepair",
-            "Use guild repair",
-            "Spend guild bank money first if the client allows it. Leave off on Forever unless you confirm guild repair exists."
-        )
-        registerCheckbox(
-            category,
-            "verbose",
-            "Chat messages",
-            "Print repair cost and junk sold in chat."
-        )
-
-        Settings.RegisterAddOnCategory(category)
-        settingsCategory = category
+        local panel = buildPanel()
+        if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
+            local category = Settings.RegisterCanvasLayoutCategory(panel, panel.name)
+            Settings.RegisterAddOnCategory(category)
+            settingsCategory = category
+        elseif InterfaceOptions_AddCategory then
+            InterfaceOptions_AddCategory(panel)
+            legacyPanel = panel
+        end
     end)
     if not ok then
         print("|cff88ccff" .. ADDON .. "|r options failed to build: " .. tostring(err))
@@ -294,6 +354,11 @@ local function openOptions()
         if not pcall(Settings.OpenToCategory, id) then
             pcall(Settings.OpenToCategory, settingsCategory)
         end
+        return
+    end
+    if legacyPanel and InterfaceOptionsFrame_OpenToCategory then
+        InterfaceOptionsFrame_OpenToCategory(legacyPanel)
+        InterfaceOptionsFrame_OpenToCategory(legacyPanel)
         return
     end
     print("|cff88ccff" .. ADDON .. "|r Options UI is unavailable. Use /fl sell, repair, guild, quiet.")
