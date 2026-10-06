@@ -226,7 +226,7 @@ local settingsCategory
 
 local function registerCheckbox(category, key, title, tooltip)
     local variable = ADDON .. "_" .. key
-    local varType = (Settings.VarType and Settings.VarType.Boolean) or type(true)
+    local varType = (Settings.VarType and Settings.VarType.Boolean) or "boolean"
     local setting = Settings.RegisterAddOnSetting(
         category,
         variable,
@@ -244,57 +244,56 @@ local function buildOptions()
     if settingsCategory then
         return
     end
-    if not Settings or not Settings.RegisterVerticalLayoutCategory then
+    if not Settings or not Settings.RegisterVerticalLayoutCategory
+        or not Settings.RegisterAddOnSetting or not Settings.CreateCheckbox then
         return
     end
 
     applyDefaults()
 
-    local category, layout = Settings.RegisterVerticalLayoutCategory("Forever Lazy")
-    settingsCategory = category
-    if not layout and category and category.GetLayout then
-        layout = category:GetLayout()
+    local ok, err = pcall(function()
+        local category = Settings.RegisterVerticalLayoutCategory("Forever Lazy")
+
+        registerCheckbox(
+            category,
+            "sellJunk",
+            "Auto-sell junk",
+            "Sell grey items when you open a merchant."
+        )
+        registerCheckbox(
+            category,
+            "repair",
+            "Auto-repair",
+            "Repair all equipped gear when the merchant can repair."
+        )
+        registerCheckbox(
+            category,
+            "useGuildRepair",
+            "Use guild repair",
+            "Spend guild bank money first if the client allows it. Leave off on Forever unless you confirm guild repair exists."
+        )
+        registerCheckbox(
+            category,
+            "verbose",
+            "Chat messages",
+            "Print repair cost and junk sold in chat."
+        )
+
+        Settings.RegisterAddOnCategory(category)
+        settingsCategory = category
+    end)
+    if not ok then
+        print("|cff88ccff" .. ADDON .. "|r options failed to build: " .. tostring(err))
     end
-
-    if layout and CreateSettingsListSectionHeaderInitializer then
-        layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(
-            "All hail the Roach King! Olympus forver!"
-        ))
-    end
-
-    registerCheckbox(
-        category,
-        "sellJunk",
-        "Auto-sell junk",
-        "Sell grey items when you open a merchant."
-    )
-    registerCheckbox(
-        category,
-        "repair",
-        "Auto-repair",
-        "Repair all equipped gear when the merchant can repair."
-    )
-    registerCheckbox(
-        category,
-        "useGuildRepair",
-        "Use guild repair",
-        "Spend guild bank money first if the client allows it. Leave off on Forever unless you confirm guild repair exists."
-    )
-    registerCheckbox(
-        category,
-        "verbose",
-        "Chat messages",
-        "Print repair cost and junk sold in chat."
-    )
-
-    Settings.RegisterAddOnCategory(category)
 end
 
 local function openOptions()
     buildOptions()
     if settingsCategory and Settings and Settings.OpenToCategory then
         local id = settingsCategory.GetID and settingsCategory:GetID() or settingsCategory
-        Settings.OpenToCategory(id)
+        if not pcall(Settings.OpenToCategory, id) then
+            pcall(Settings.OpenToCategory, settingsCategory)
+        end
         return
     end
     print("|cff88ccff" .. ADDON .. "|r Options UI is unavailable. Use /fl sell, repair, guild, quiet.")
