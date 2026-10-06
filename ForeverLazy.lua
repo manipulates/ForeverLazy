@@ -70,6 +70,10 @@ local function containerItem(bag, slot)
         if type(info) == "table" then
             return info
         end
+        return nil
+    end
+    if not GetContainerItemInfo then
+        return nil
     end
     local icon, count, locked, quality, _, _, link, _, hasNoValue, itemID = GetContainerItemInfo(bag, slot)
     if not icon and not itemID then
@@ -250,15 +254,29 @@ local function addonVersion()
     return fn and fn(ADDON, "Version") or ""
 end
 
-local function makeText(parent, template, text, r, g, b)
+local PANEL_WIDTH = 540
+local GREY = { 0.62, 0.62, 0.62 }
+
+local function makeText(parent, template, text, color)
     local fs = parent:CreateFontString(nil, "ARTWORK", template)
     fs:SetJustifyH("LEFT")
     fs:SetJustifyV("TOP")
     fs:SetText(text)
-    if r then
-        fs:SetTextColor(r, g, b)
+    if color then
+        fs:SetTextColor(color[1], color[2], color[3])
     end
     return fs
+end
+
+local function makeSection(parent, title, y)
+    local header = makeText(parent, "GameFontNormal", title)
+    header:SetPoint("TOPLEFT", 16, y)
+    local line = parent:CreateTexture(nil, "ARTWORK")
+    line:SetColorTexture(1, 1, 1, 0.12)
+    line:SetHeight(1)
+    line:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -6)
+    line:SetWidth(PANEL_WIDTH)
+    return header
 end
 
 local function makeCheckbox(parent, key, title, hint, x, y)
@@ -267,11 +285,12 @@ local function makeCheckbox(parent, key, title, hint, x, y)
     cb:SetPoint("TOPLEFT", x, y)
 
     local label = makeText(parent, "GameFontHighlight", title)
-    label:SetPoint("LEFT", cb, "RIGHT", 4, 0)
+    label:SetPoint("LEFT", cb, "RIGHT", 4, 1)
 
     if hint then
-        local note = makeText(parent, "GameFontDisableSmall", hint)
-        note:SetPoint("TOPLEFT", cb, "BOTTOMLEFT", 30, 2)
+        local note = makeText(parent, "GameFontHighlightSmall", hint, GREY)
+        note:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -3)
+        note:SetWidth(PANEL_WIDTH - x - 40)
     end
 
     cb:SetScript("OnClick", function(self)
@@ -285,9 +304,19 @@ end
 
 local function makeSlider(parent, key, x, y)
     local name = ADDON .. "RepairSlider"
+    local label = makeText(parent, "GameFontHighlight", "Repair threshold")
+    label:SetPoint("TOPLEFT", x, y)
+
+    local value = makeText(parent, "GameFontNormal", "")
+    value:SetPoint("LEFT", label, "RIGHT", 10, 0)
+
+    local note = makeText(parent, "GameFontHighlightSmall",
+        "Only repair once your most damaged item is at or below this.", GREY)
+    note:SetPoint("TOPLEFT", label, "BOTTOMLEFT", 0, -3)
+
     local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", x, y)
-    slider:SetWidth(220)
+    slider:SetPoint("TOPLEFT", note, "BOTTOMLEFT", 0, -16)
+    slider:SetWidth(280)
     slider:SetMinMaxValues(10, 100)
     slider:SetValueStep(5)
     if slider.SetObeyStepOnDrag then
@@ -297,28 +326,23 @@ local function makeSlider(parent, key, x, y)
     local text = _G[name .. "Text"] or slider.Text
     local low = _G[name .. "Low"] or slider.Low
     local high = _G[name .. "High"] or slider.High
-    if low then low:SetText("10%") end
-    if high then high:SetText("100%") end
+    if text then text:SetText("") end
+    if low then low:SetText("10%") low:SetTextColor(GREY[1], GREY[2], GREY[3]) end
+    if high then high:SetText("100%") high:SetTextColor(GREY[1], GREY[2], GREY[3]) end
 
-    local function show(value)
-        if text then
-            if value >= 100 then
-                text:SetText("Repair at any damage")
-            else
-                text:SetText("Repair when gear is at " .. value .. "% or below")
-            end
-        end
+    local function show(v)
+        value:SetText(v >= 100 and "any damage" or (v .. "%"))
     end
 
-    slider:SetScript("OnValueChanged", function(self, value)
-        value = math.floor(value / 5 + 0.5) * 5
-        db()[key] = value
-        show(value)
+    slider:SetScript("OnValueChanged", function(self, v)
+        v = math.floor(v / 5 + 0.5) * 5
+        db()[key] = v
+        show(v)
     end)
     slider.refresh = function()
-        local value = tonumber(db()[key]) or 100
-        slider:SetValue(value)
-        show(value)
+        local v = tonumber(db()[key]) or 100
+        slider:SetValue(v)
+        show(v)
     end
     return slider
 end
@@ -327,53 +351,47 @@ local function buildPanel()
     local panel = CreateFrame("Frame")
     panel.name = "Forever Lazy"
 
-    local title = makeText(panel, "GameFontNormalLarge", "Forever Lazy")
+    local title = makeText(panel, "GameFontNormalHuge", "Forever Lazy")
     title:SetPoint("TOPLEFT", 16, -16)
 
-    local version = makeText(panel, "GameFontDisableSmall", "v" .. addonVersion())
-    version:SetPoint("BOTTOMLEFT", title, "BOTTOMRIGHT", 8, 1)
+    local version = makeText(panel, "GameFontHighlightSmall", "v" .. addonVersion(), GREY)
+    version:SetPoint("BOTTOMLEFT", title, "BOTTOMRIGHT", 8, 3)
 
-    local tagline = makeText(panel, "GameFontHighlightSmall", "Sells your junk and repairs your gear when you open a vendor.")
+    local tagline = makeText(panel, "GameFontHighlight", "Sells your junk and repairs your gear when you open a vendor.")
     tagline:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
 
-    local vendorHeader = makeText(panel, "GameFontNormal", "Vendor")
-    vendorHeader:SetPoint("TOPLEFT", tagline, "BOTTOMLEFT", 0, -22)
+    local boxes = {}
 
-    local boxes = {
-        makeCheckbox(panel, "sellJunk", "Auto-sell junk", "Sells grey items when a merchant opens.", 16, -104),
-        makeCheckbox(panel, "repair", "Auto-repair", "Repairs all equipped gear when the merchant can repair.", 16, -154),
-        makeCheckbox(panel, "useGuildRepair", "Use guild repair", "Spends guild bank money first. Leave off on Forever unless guild repair works for you.", 40, -204),
-    }
+    makeSection(panel, "Vendor", -76)
+    boxes[#boxes + 1] = makeCheckbox(panel, "sellJunk", "Auto-sell junk", "Sells grey items when a merchant opens.", 16, -108)
+    boxes[#boxes + 1] = makeCheckbox(panel, "repair", "Auto-repair", "Repairs all equipped gear when the merchant can repair.", 16, -158)
+    boxes[#boxes + 1] = makeCheckbox(panel, "useGuildRepair", "Use guild repair", "Spends guild bank money first. Leave off on Forever unless guild repair works for you.", 44, -208)
+    boxes[#boxes + 1] = makeSlider(panel, "repairBelow", 20, -268)
 
-    local slider = makeSlider(panel, "repairBelow", 24, -278)
-    boxes[#boxes + 1] = slider
+    makeSection(panel, "Chat", -372)
+    boxes[#boxes + 1] = makeCheckbox(panel, "verbose", "Chat messages", "Prints repair cost and junk sold.", 16, -404)
 
-    local chatHeader = makeText(panel, "GameFontNormal", "Chat")
-    chatHeader:SetPoint("TOPLEFT", 16, -322)
-    boxes[#boxes + 1] = makeCheckbox(panel, "verbose", "Chat messages", "Prints repair cost and junk sold.", 16, -346)
-
-    local aboutHeader = makeText(panel, "GameFontNormal", "About")
-    aboutHeader:SetPoint("TOPLEFT", 16, -408)
-
-    local about = makeText(panel, "GameFontHighlightSmall",
+    local aboutHeader = makeSection(panel, "About", -464)
+    local about = makeText(panel, "GameFontHighlight",
         "Retail spoiled us. Classic never caught up, and I kept forgetting to repair my armor and clear the grey junk out of my bags. "
         .. "So I wrote this to do it for me. Nothing fancy, but it gets the job done.")
-    about:SetPoint("TOPLEFT", aboutHeader, "BOTTOMLEFT", 0, -8)
-    about:SetWidth(520)
+    about:SetPoint("TOPLEFT", aboutHeader, "BOTTOMLEFT", 0, -16)
+    about:SetWidth(PANEL_WIDTH)
 
-    local credit = makeText(panel, "GameFontNormalSmall", "A Chrome Jesus piece. 2026.")
-    credit:SetPoint("TOPLEFT", about, "BOTTOMLEFT", 0, -14)
+    local credit = makeText(panel, "GameFontNormal", "A Chrome Jesus piece. 2026.")
+    credit:SetPoint("TOPLEFT", about, "BOTTOMLEFT", 0, -12)
 
     local link = CreateFrame("EditBox", nil, panel)
-    link:SetFontObject("GameFontDisableSmall")
+    link:SetFontObject("GameFontHighlightSmall")
+    link:SetTextColor(GREY[1], GREY[2], GREY[3])
     link:SetAutoFocus(false)
     link:SetSize(300, 16)
-    link:SetPoint("TOPLEFT", credit, "BOTTOMLEFT", 0, -4)
+    link:SetPoint("TOPLEFT", credit, "BOTTOMLEFT", 0, -6)
     link:SetText(REPO_URL)
     link:SetScript("OnEditFocusLost", function(self) self:SetText(REPO_URL) end)
     link:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
-    local commands = makeText(panel, "GameFontDisableSmall", "Chat commands: /fl, /fl sell, /fl repair, /fl guild, /fl quiet")
+    local commands = makeText(panel, "GameFontHighlightSmall", "Chat commands: /fl   /fl sell   /fl repair   /fl guild   /fl quiet", GREY)
     commands:SetPoint("TOPLEFT", link, "BOTTOMLEFT", 0, -14)
 
     panel:SetScript("OnShow", function()
