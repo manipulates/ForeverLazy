@@ -1,3 +1,5 @@
+<p align="center"><img src="logo.png" alt="Forever Lazy" width="160"></p>
+
 # Forever Lazy
 
 A small Classic / Forever addon that auto-sells grey junk and auto-repairs when you open a vendor. Retail spoiled us. This covers the two things I always forget.
